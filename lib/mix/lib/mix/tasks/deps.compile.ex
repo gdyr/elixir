@@ -207,8 +207,9 @@ defmodule Mix.Tasks.Deps.Compile do
       {"TERM", "dumb"}
     ]
 
-    cmd = "#{rebar_cmd(dep)} bare compile --paths #{escape_path(lib_path)}"
-    do_command(dep, config, cmd, false, env)
+    cmd = rebar_cmd(dep)
+    args = ["bare", "compile", "--paths", lib_path]
+    do_command(dep, config, cmd, args, env)
 
     # Check if we have any new symlinks after compilation
     for dir <- ~w(include priv src),
@@ -218,11 +219,6 @@ defmodule Mix.Tasks.Deps.Compile do
 
     Code.prepend_path(Path.join(build_path, "ebin"), cache: true)
     true
-  end
-
-  defp escape_path(path) do
-    escape = if match?({:win32, _}, :os.type()), do: "^ ", else: "\\ "
-    String.replace(path, " ", escape)
   end
 
   defp rebar_config(dep) do
@@ -260,7 +256,7 @@ defmodule Mix.Tasks.Deps.Compile do
 
   defp do_make(dep, config) do
     command = make_command(dep)
-    do_command(dep, config, command, true, [{"IS_DEP", "1"}])
+    do_shell_command(dep, config, command, true, [{"IS_DEP", "1"}])
     build_structure(dep, config)
     true
   end
@@ -289,7 +285,7 @@ defmodule Mix.Tasks.Deps.Compile do
 
   defp do_compile(%Mix.Dep{opts: opts} = dep, config) do
     if command = opts[:compile] do
-      do_command(dep, config, command, true)
+      do_shell_command(dep, config, command, true)
       build_structure(dep, config)
       true
     else
@@ -297,7 +293,22 @@ defmodule Mix.Tasks.Deps.Compile do
     end
   end
 
-  defp do_command(dep, config, command, print_app?, env \\ []) do
+  defp do_command(dep, config, command, args, env \\ []) do
+    %Mix.Dep{app: app, system_env: system_env, opts: opts} = dep
+
+    env = [{"ERL_LIBS", Path.join(config[:deps_build_path], "lib")} | system_env] ++ env
+
+    if elem(System.cmd(command, args, env: env, cd: opts[:dest]), 1) != 0 do
+      Mix.raise(
+        "Could not compile dependency #{inspect(app)}, \"#{command}\" command failed. " <>
+          deps_compile_feedback(app)
+      )
+    end
+
+    true
+  end
+
+  defp do_shell_command(dep, config, command, print_app?, env \\ []) do
     %Mix.Dep{app: app, system_env: system_env, opts: opts} = dep
 
     env = [{"ERL_LIBS", Path.join(config[:deps_build_path], "lib")} | system_env] ++ env
