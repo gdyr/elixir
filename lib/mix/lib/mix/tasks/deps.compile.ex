@@ -293,7 +293,7 @@ defmodule Mix.Tasks.Deps.Compile do
     end
   end
 
-  defp do_command(dep, config, command, args, env \\ []) do
+  defp do_command(dep, config, command, args, env) do
     %Mix.Dep{app: app, system_env: system_env, opts: opts} = dep
 
     env = [{"ERL_LIBS", Path.join(config[:deps_build_path], "lib")} | system_env] ++ env
